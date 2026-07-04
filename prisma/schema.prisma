@@ -1,0 +1,147 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  role          Role      @default(COMPANY)
+  sessions      Session[]
+  accounts      Account[]
+  company       Company? 
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String
+  userAgent String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Company {
+  id               String        @id @default(cuid())
+  userId           String        @unique 
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cacRc            String        @unique
+  name             String
+  registrationDate DateTime?
+  address          String?
+  isVerified       Boolean       @default(false)
+  verificationDate DateTime?
+  status           CompanyStatus @default(PENDING)
+  jobs             Job[]
+  verificationLogs VerificationLog[]
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@map("company")
+}
+
+model Job {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title            String
+  description      String
+  location         String   
+  interviewAddress String   
+  latitude         Float?   
+  longitude        Float?   
+  salary           String?
+  isActive         Boolean  @default(true)
+  reports          Report[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  riskScore Float? @default(0)
+
+  @@map("job")
+}
+
+model VerificationLog {
+  id          String         @id @default(cuid())
+  companyId   String?        
+  company     Company?       @relation(fields: [companyId], references: [id])
+  cacRcNumber String
+  queriedBy   QuerySource    
+  rawResponse Json?          
+  createdAt   DateTime       @default(now())
+
+  @@map("verification_log")
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  reason        String   
+  description   String
+  reporterPhone String?  
+  createdAt     DateTime @default(now())
+  latitude  Float?
+  longitude Float?
+
+  @@map("report")
+}
+
+enum Role {
+  ADMIN
+  COMPANY
+}
+
+enum CompanyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum QuerySource {
+  WEB
+  WHATSAPP
+}
