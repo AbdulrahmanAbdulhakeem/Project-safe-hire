@@ -67,7 +67,7 @@ export const adminCreateCompany = async (
       companyId: newCompany.id,
       userId: newUser.user.id,
       cacRc: newCompany.cacRc,
-      user:newUser
+      user: newUser,
     });
   } catch (error) {
     next(error);
@@ -79,7 +79,11 @@ export const adminCreateCompany = async (
  * @desc    Retrieve a comprehensive roster of all registered corporate entities
  * @access  Private (Admin Only)
  */
-export const getAllCompaniesAdmin = async (req: Request, res: Response, next: NextFunction) => {
+export const getAllCompaniesAdmin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const companies = await prisma.company.findMany({
       include: {
@@ -93,7 +97,7 @@ export const getAllCompaniesAdmin = async (req: Request, res: Response, next: Ne
         // Count relational metrics dynamically to gauge platform engagement
         _count: {
           select: {
-            jobs: true,             // How many job invites they have created
+            jobs: true, // How many job invites they have created
             verificationLogs: true, // System demand metrics / platform check traffic
           },
         },
@@ -155,7 +159,7 @@ export const getAllCompaniesAdmin = async (req: Request, res: Response, next: Ne
 //           "AppId": process.env.DOJAH_APP_ID,
 //         },
 //       });
-      
+
 //       dojahData = response.data?.entity;
 //     } catch (apiError: any) {
 //       console.error("Dojah Verification Failure:", apiError?.response?.data || apiError.message);
@@ -172,8 +176,8 @@ export const getAllCompaniesAdmin = async (req: Request, res: Response, next: Ne
 //     // Extract deterministic metadata straight from Dojah's official payload
 //     const officialName = dojahData.company_name;
 //     const officialAddress = dojahData.address || null;
-//     const officialRegDate = dojahData.date_of_registration 
-//       ? new Date(dojahData.date_of_registration) 
+//     const officialRegDate = dojahData.date_of_registration
+//       ? new Date(dojahData.date_of_registration)
 //       : null;
 
 //     // 4. Instantiate Better-Auth user model mapping using the deterministic corporate name
@@ -181,7 +185,7 @@ export const getAllCompaniesAdmin = async (req: Request, res: Response, next: Ne
 //       body: {
 //         email,
 //         password,
-//         name: officialName, 
+//         name: officialName,
 //       },
 //     });
 
@@ -260,7 +264,9 @@ export const adminCreateCompanyFromRegistry = async (
     if (existingCompany) {
       return res
         .status(409)
-        .json({ error: "A company matching this CAC RC Number is already registered." });
+        .json({
+          error: "A company matching this CAC RC Number is already registered.",
+        });
     }
 
     // 2. Fetch official corporate data from Dojah's registry layer
@@ -273,52 +279,66 @@ export const adminCreateCompanyFromRegistry = async (
         },
         headers: {
           Authorization: process.env.DOJAH_SECRET_KEY,
-          "AppId": process.env.DOJAH_APP_ID,
+          AppId: process.env.DOJAH_APP_ID,
         },
       });
-      
+
       dojahEntity = response.data?.entity;
-      console.log(response.data)
+      console.log(response.data);
     } catch (apiError: any) {
-      console.error("Dojah Registry Communication Error:", apiError?.response?.data || apiError.message);
+      console.error(
+        "Dojah Registry Communication Error:",
+        apiError?.response?.data || apiError.message,
+      );
       return res.status(422).json({
         error: "Failed to pull verifying metadata from the Dojah network.",
-        details: apiError?.response?.data?.error || "Invalid RC number or unmatching company type structural check.",
+        details:
+          apiError?.response?.data?.error ||
+          "Invalid RC number or unmatching company type structural check.",
       });
     }
 
     if (!dojahEntity || !dojahEntity.company_name) {
-      return res.status(404).json({ error: "No matching record found on the live corporate registry." });
+      return res
+        .status(404)
+        .json({
+          error: "No matching record found on the live corporate registry.",
+        });
     }
 
     // 3. Extract deterministic values directly from the API response
     const officialCompanyName = dojahEntity.company_name;
     const officialAddress = dojahEntity.address || null;
-    const officialRegDate = dojahEntity.date_of_registration 
-      ? new Date(dojahEntity.date_of_registration) 
+    const officialRegDate = dojahEntity.date_of_registration
+      ? new Date(dojahEntity.date_of_registration)
       : null;
 
     // 4. Generate Default Credentials for the account fallback
     // Converts "Dangote Holdings PLC" -> "dangoteholdingsplc_rc123456@safehire.local"
-    const slugifiedName = officialCompanyName.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const slugifiedName = officialCompanyName
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
     const defaultEmail = `${slugifiedName}_${sanitizedRc.toLowerCase()}@safehire.local`;
-    
+
     // Global fallback password for initial system onboarding testing
-    const defaultPassword = "ChangeThisPassword123!"; 
+    const defaultPassword = "ChangeThisPassword123!";
 
     // 5. Initialize the User model within Better-Auth using default configurations
     const newUser = await auth.api.signUpEmail({
       body: {
         email: defaultEmail,
         password: defaultPassword,
-        name: officialCompanyName, 
+        name: officialCompanyName,
       },
     });
 
     if (!newUser || !newUser.user) {
       return res
         .status(500)
-        .json({ error: "Failed to construct system authentication schema placeholders." });
+        .json({
+          error:
+            "Failed to construct system authentication schema placeholders.",
+        });
     }
 
     // 6. Atomically write the profile and save the audit proof in your logs
@@ -350,35 +370,192 @@ export const adminCreateCompanyFromRegistry = async (
 
     // 7. Hand back the successfully completed entity along with the default access keys
     return res.status(201).json({
-      message: "Company profile cleanly constructed using official registry data.",
+      message:
+        "Company profile cleanly constructed using official registry data.",
       companyId: newCompany.id,
       userId: newUser.user.id,
       credentialsPlaceholder: {
         generatedEmail: defaultEmail,
         temporaryPassword: defaultPassword,
-        notice: "Corporate name and address data were locked strictly from official registry records."
+        notice:
+          "Corporate name and address data were locked strictly from official registry records.",
       },
       dataSummary: {
         name: newCompany.name,
         cacRc: newCompany.cacRc,
-        address: newCompany.address
-      }
+        address: newCompany.address,
+      },
     });
   } catch (error) {
     next(error);
   }
 };
 
-export const deleteCompanyProfile = async (req: Request, res: Response,next:NextFunction) => {
+export const getCompanyProfile = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.userId as string;
+
+    const company = await prisma.company.findUnique({
+      where: { id },
+      include: {
+        jobs: true,
+        verificationLogs: true,
+        _count: { select: { jobs: true } },
+      },
+    });
+
+    if (!company) return res.status(404).json({ error: "Company not found" });
+
+    res.json({ success: true, data: company });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch company profile" });
+  }
+};
+
+export const updateCompanyProfile = async (req: Request, res: Response) => {
+  try {
+    const id  = req.params.userId as string;
+    const { name, email, address, status } = req.body;
+
+    const company = await prisma.company.update({
+      where: { id },
+      data: { name, email, address, status },
+    });
+
+    res.json({ success: true, data: company });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update company" });
+  }
+};
+
+export const deleteCompanyProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const id = req.params.userId as string;
 
-  console.log(id)
+  console.log(id);
   try {
     const deleted = await prisma.user.delete({
-      where:{id}
-    })
-    res.json({ message: `Company with ID ${id} and all active sessions deleted.` });
+      where: { id },
+    });
+    res.json({
+      message: `Company with ID ${id} and all active sessions deleted.`,
+    });
   } catch (error) {
-    next(error)
+    next(error);
+  }
+};
+
+/**
+ * @route   PUT /api/admin/companies/:id
+ * @desc    Comprehensively update a corporate entity and its matching user parameters
+ * @access  Private (Admin Only)
+ */
+export const adminUpdateCompany = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id  = req.params.id as string;
+    const { name, cacRc, address, status, isVerified } = req.body;
+
+    // 1. Double check the core entity exists before applying transaction locks
+    const targetCompany = await prisma.company.findUnique({
+      where: { id },
+    });
+
+    if (!targetCompany) {
+      return res.status(404).json({ error: "The targeted company record does not exist." });
+    }
+
+    // 2. Pre-process and sanitize strings if an RC number modification is requested
+    let sanitizedRc: string | undefined;
+    if (cacRc) {
+      sanitizedRc = cacRc.replace(/\s+/g, "").toUpperCase();
+
+      // Ensure the new RC doesn't collide with another existing company record
+      const duplicateRc = await prisma.company.findFirst({
+        where: {
+          cacRc: sanitizedRc,
+          NOT: { id },
+        },
+      });
+      if (duplicateRc) {
+        return res.status(409).json({ error: "Another corporate record is already utilizing this CAC RC details." });
+      }
+    }
+
+    // 3. Atomically synchronize modifications across User and Company schemas
+    const updatedCompany = await prisma.$transaction(async (tx) => {
+      // If the administrative body changes the company name, update the corresponding User profile text
+      if (name) {
+        await tx.user.update({
+          where: { id: targetCompany.userId },
+          data: { name },
+        });
+      }
+
+      // Compute dynamic fields based on verification switches
+      let verificationDateUpdate = targetCompany.verificationDate;
+      if (isVerified === true && !targetCompany.isVerified) {
+        verificationDateUpdate = new Date();
+      } else if (isVerified === false) {
+        verificationDateUpdate = null;
+      }
+
+      // Commit the secondary adjustments to the core database node
+      return await tx.company.update({
+        where: { id },
+        data: {
+          name: name ?? undefined,
+          cacRc: sanitizedRc ?? undefined,
+          address: address !== undefined ? address : undefined,
+          status: status ?? undefined,
+          isVerified: isVerified !== undefined ? isVerified : undefined,
+          verificationDate: verificationDateUpdate,
+        },
+        include: {
+          user: {
+            select: {
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+    });
+
+    return res.status(200).json({
+      message: "Corporate entity and associated user profiles updated successfully.",
+      data: updatedCompany,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+export const getAdminStats = async (req: Request, res: Response) => {
+  try {
+    const totalCompanies = await prisma.company.count();
+    const totalJobs = await prisma.job.count();
+    const totalAdmins = await prisma.user.count({
+      where: { role: 'ADMIN' }
+    });
+
+    const pendingCompanies = await prisma.company.count({
+      where: { status: 'PENDING' }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalCompanies,
+        totalJobs,
+        totalAdmins,
+        pendingCompanies,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch stats" });
   }
 };

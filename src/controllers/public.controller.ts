@@ -170,6 +170,54 @@ export const getAllJobs = async (
   }
 };
 
+/**
+ * @route   GET /api/public/companies/:id
+ * @desc    Fetch public-facing corporate data and active job positions by ID
+ * @access  Public
+ */
+export const getCompanyByIdPublic = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+
+    const company = await prisma.company.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        cacRc: true,
+        address: true,
+        isVerified: true,
+        status: true,
+        verificationDate: true,
+        createdAt: true,
+        // Only fetch active job opportunities for public transparency
+        jobs: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            location: true,
+            interviewAddress: true,
+            salary: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: "No registered corporate entity matches this identifier." });
+    }
+
+    return res.status(200).json({
+      message: "Corporate public profile compiled successfully.",
+      data: company,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const getRiskHeatmapData = async (req: Request, res: Response) => {
   try {

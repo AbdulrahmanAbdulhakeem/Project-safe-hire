@@ -9,16 +9,22 @@ import jobRoutes from "./routes/job.route";
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+export const FRONTEND_URL = process.env.FRONTEND_URL;
 
-app.all("/api/auth/*any", toNodeHandler(auth));
+if (!FRONTEND_URL) throw Error("Frontend URL is missing");
+
+
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:8000", 
+    origin: FRONTEND_URL, 
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   }),
 );
+
+app.all("/api/auth/*any", toNodeHandler(auth));
+app.use(express.urlencoded({ extended: true }));
 
 app.use(express.json());
 

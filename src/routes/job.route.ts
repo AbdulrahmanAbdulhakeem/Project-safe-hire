@@ -19,4 +19,5 @@ router.put("/:jobId", updateJob);
 router.delete("/:jobId", deleteJob);
 router.get("/:companyId", getMyCompanyProfile);
 
+
 export default router;
