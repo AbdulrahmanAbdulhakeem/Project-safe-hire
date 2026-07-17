@@ -262,11 +262,9 @@ export const adminCreateCompanyFromRegistry = async (
       where: { cacRc: sanitizedRc },
     });
     if (existingCompany) {
-      return res
-        .status(409)
-        .json({
-          error: "A company matching this CAC RC Number is already registered.",
-        });
+      return res.status(409).json({
+        error: "A company matching this CAC RC Number is already registered.",
+      });
     }
 
     // 2. Fetch official corporate data from Dojah's registry layer
@@ -299,11 +297,9 @@ export const adminCreateCompanyFromRegistry = async (
     }
 
     if (!dojahEntity || !dojahEntity.company_name) {
-      return res
-        .status(404)
-        .json({
-          error: "No matching record found on the live corporate registry.",
-        });
+      return res.status(404).json({
+        error: "No matching record found on the live corporate registry.",
+      });
     }
 
     // 3. Extract deterministic values directly from the API response
@@ -333,12 +329,9 @@ export const adminCreateCompanyFromRegistry = async (
     });
 
     if (!newUser || !newUser.user) {
-      return res
-        .status(500)
-        .json({
-          error:
-            "Failed to construct system authentication schema placeholders.",
-        });
+      return res.status(500).json({
+        error: "Failed to construct system authentication schema placeholders.",
+      });
     }
 
     // 6. Atomically write the profile and save the audit proof in your logs
@@ -414,7 +407,7 @@ export const getCompanyProfile = async (req: Request, res: Response) => {
 
 export const updateCompanyProfile = async (req: Request, res: Response) => {
   try {
-    const id  = req.params.userId as string;
+    const id = req.params.userId as string;
     const { name, email, address, status } = req.body;
 
     const company = await prisma.company.update({
@@ -433,29 +426,38 @@ export const deleteCompanyProfile = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const id = req.params.userId as string;
+  const id = req.params.userId as string; // This is userId
 
-  console.log(id);
   try {
+    // Delete related company first
+    await prisma.company.deleteMany({
+      where: { userId: id },
+    });
+
+    // Then delete user
     const deleted = await prisma.user.delete({
       where: { id },
     });
+
     res.json({
-      message: `Company with ID ${id} and all active sessions deleted.`,
+      message: `Company and user with ID ${id} deleted successfully.`,
     });
   } catch (error) {
     next(error);
   }
 };
-
 /**
  * @route   PUT /api/admin/companies/:id
  * @desc    Comprehensively update a corporate entity and its matching user parameters
  * @access  Private (Admin Only)
  */
-export const adminUpdateCompany = async (req: Request, res: Response, next: NextFunction) => {
+export const adminUpdateCompany = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const id  = req.params.id as string;
+    const id = req.params.id as string;
     const { name, cacRc, address, status, isVerified } = req.body;
 
     // 1. Double check the core entity exists before applying transaction locks
@@ -464,7 +466,9 @@ export const adminUpdateCompany = async (req: Request, res: Response, next: Next
     });
 
     if (!targetCompany) {
-      return res.status(404).json({ error: "The targeted company record does not exist." });
+      return res
+        .status(404)
+        .json({ error: "The targeted company record does not exist." });
     }
 
     // 2. Pre-process and sanitize strings if an RC number modification is requested
@@ -480,7 +484,12 @@ export const adminUpdateCompany = async (req: Request, res: Response, next: Next
         },
       });
       if (duplicateRc) {
-        return res.status(409).json({ error: "Another corporate record is already utilizing this CAC RC details." });
+        return res
+          .status(409)
+          .json({
+            error:
+              "Another corporate record is already utilizing this CAC RC details.",
+          });
       }
     }
 
@@ -525,7 +534,8 @@ export const adminUpdateCompany = async (req: Request, res: Response, next: Next
     });
 
     return res.status(200).json({
-      message: "Corporate entity and associated user profiles updated successfully.",
+      message:
+        "Corporate entity and associated user profiles updated successfully.",
       data: updatedCompany,
     });
   } catch (error) {
@@ -533,17 +543,16 @@ export const adminUpdateCompany = async (req: Request, res: Response, next: Next
   }
 };
 
-
 export const getAdminStats = async (req: Request, res: Response) => {
   try {
     const totalCompanies = await prisma.company.count();
     const totalJobs = await prisma.job.count();
     const totalAdmins = await prisma.user.count({
-      where: { role: 'ADMIN' }
+      where: { role: "ADMIN" },
     });
 
     const pendingCompanies = await prisma.company.count({
-      where: { status: 'PENDING' }
+      where: { status: "PENDING" },
     });
 
     res.json({
@@ -553,7 +562,7 @@ export const getAdminStats = async (req: Request, res: Response) => {
         totalJobs,
         totalAdmins,
         pendingCompanies,
-      }
+      },
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch stats" });

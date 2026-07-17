@@ -1,14 +1,21 @@
 import { Request, Response, NextFunction } from "express";
 import axios from "axios";
 import { prisma } from "../lib/prisma.js";
+import nodemailer from "nodemailer"
 
-export const verifyCompanyPublic = async (req: Request, res: Response, next: NextFunction) => {
+export const verifyCompanyPublic = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const cacRc = req.params.cacRc as string;
     const { source, companyType } = req.query; // Dojah lookup requires a company type (defaults to 'COMPANY')
 
     if (!cacRc) {
-      return res.status(400).json({ error: "CAC RC Number is required for validation." });
+      return res
+        .status(400)
+        .json({ error: "CAC RC Number is required for validation." });
     }
 
     // Clean formatting variations (e.g., "RC 123456" -> "RC123456")
@@ -29,10 +36,10 @@ export const verifyCompanyPublic = async (req: Request, res: Response, next: Nex
             location: true,
             interviewAddress: true,
             salary: true,
-            createdAt: true
-          }
-        }
-      }
+            createdAt: true,
+          },
+        },
+      },
     });
 
     // Case A: The company exists internally on your platform
@@ -43,8 +50,11 @@ export const verifyCompanyPublic = async (req: Request, res: Response, next: Nex
           cacRcNumber: sanitizedRc,
           queriedBy: querySource,
           companyId: localCompany.id,
-          rawResponse: { source: "LOCAL_DATABASE", status: localCompany.status }
-        }
+          rawResponse: {
+            source: "LOCAL_DATABASE",
+            status: localCompany.status,
+          },
+        },
       });
 
       return res.status(200).json({
@@ -57,8 +67,8 @@ export const verifyCompanyPublic = async (req: Request, res: Response, next: Nex
           address: localCompany.address,
           verificationDate: localCompany.verificationDate,
           activeJobsCount: localCompany.jobs.length,
-          jobs: localCompany.jobs
-        }
+          jobs: localCompany.jobs,
+        },
       });
     }
 
@@ -72,13 +82,16 @@ export const verifyCompanyPublic = async (req: Request, res: Response, next: Nex
         },
         headers: {
           Authorization: process.env.DOJAH_SECRET_KEY,
-          "AppId": process.env.DOJAH_APP_ID,
+          AppId: process.env.DOJAH_APP_ID,
         },
       });
 
       dojahEntity = response.data?.entity;
     } catch (apiError: any) {
-      console.error("Public Verification Dojah Error:", apiError?.response?.data || apiError.message);
+      console.error(
+        "Public Verification Dojah Error:",
+        apiError?.response?.data || apiError.message,
+      );
       // We don't crash here; we proceed to log it as an unverified/failed check
     }
 
@@ -88,8 +101,10 @@ export const verifyCompanyPublic = async (req: Request, res: Response, next: Nex
         cacRcNumber: sanitizedRc,
         queriedBy: querySource,
         companyId: null,
-        rawResponse: dojahEntity || { error: "Failed or empty registry response" }
-      }
+        rawResponse: dojahEntity || {
+          error: "Failed or empty registry response",
+        },
+      },
     });
 
     // If Dojah also yields nothing, this is highly likely an illegitimate scam setup
@@ -97,7 +112,8 @@ export const verifyCompanyPublic = async (req: Request, res: Response, next: Nex
       return res.status(404).json({
         isRegisteredOnSafeHire: false,
         isVerifiedRegistry: false,
-        message: "No matching record discovered in the national corporate registry. Extreme caution is advised."
+        message:
+          "No matching record discovered in the national corporate registry. Extreme caution is advised.",
       });
     }
 
@@ -105,18 +121,20 @@ export const verifyCompanyPublic = async (req: Request, res: Response, next: Nex
     return res.status(200).json({
       isRegisteredOnSafeHire: false,
       isVerifiedRegistry: true, // Confirmed existing by official registry
-      status: "UNBOARDED_BY_ADMIN", 
-      message: "Company is registered on the corporate registry but has not claimed its Safe-Hire profile yet.",
+      status: "UNBOARDED_BY_ADMIN",
+      message:
+        "Company is registered on the corporate registry but has not claimed its Safe-Hire profile yet.",
       company: {
         name: dojahEntity.company_name,
         cacRc: sanitizedRc,
-        address: dojahEntity.address || "Address not provided in registry public records",
+        address:
+          dojahEntity.address ||
+          "Address not provided in registry public records",
         registrationDate: dojahEntity.date_of_registration || null,
         activeJobsCount: 0,
-        jobs: []
-      }
+        jobs: [],
+      },
     });
-
   } catch (error) {
     next(error);
   }
@@ -142,12 +160,17 @@ export const getAllJobs = async (
         interviewAddress: true,
         salary: true,
         createdAt: true,
-        // Include verified corporate data so job seekers know who posted it
+        // Include detailed verified corporate data so job seekers have full context
         company: {
           select: {
+            id: true,
             name: true,
             cacRc: true,
+            address: true,
             isVerified: true,
+            status: true,
+            verificationDate: true,
+            createdAt: true,
           },
         },
         // Aggregate report counts dynamically to catch active scam trends
@@ -175,7 +198,11 @@ export const getAllJobs = async (
  * @desc    Fetch public-facing corporate data and active job positions by ID
  * @access  Public
  */
-export const getCompanyByIdPublic = async (req: Request, res: Response, next: NextFunction) => {
+export const getCompanyByIdPublic = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const id = req.params.id as string;
 
@@ -205,9 +232,14 @@ export const getCompanyByIdPublic = async (req: Request, res: Response, next: Ne
         },
       },
     });
+    console.log(company);
 
     if (!company) {
-      return res.status(404).json({ error: "No registered corporate entity matches this identifier." });
+      return res
+        .status(404)
+        .json({
+          error: "No registered corporate entity matches this identifier.",
+        });
     }
 
     return res.status(200).json({
@@ -221,44 +253,103 @@ export const getCompanyByIdPublic = async (req: Request, res: Response, next: Ne
 
 export const getRiskHeatmapData = async (req: Request, res: Response) => {
   try {
+    // Group by approximate region (you can improve this with real geo data later)
     const jobs = await prisma.job.findMany({
       where: { isActive: true },
-      select: {
-        id: true,
-        title: true,
-        location: true,
-        interviewAddress: true,
-        latitude: true,
-        longitude: true,
-        company: {
-          select: { name: true, isVerified: true }
-        },
-        _count: {
-          select: { reports: true }
-        }
-      }
+      include: {
+        company: true,
+        reports: true,
+      },
     });
 
-    // Calculate simple risk score
-    const heatmapData = jobs
-      .filter(job => job.latitude && job.longitude)
-      .map(job => ({
-        lat: job.latitude,
-        lng: job.longitude,
-        intensity: Math.min(100, (job._count.reports * 25) + (job.company.isVerified ? 0 : 30)), 
-        jobId: job.id,
-        title: job.title,
-        company: job.company.name,
-        reportCount: job._count.reports,
-        verified: job.company.isVerified
-      }));
+    // Simple region bucketing (expand this later)
+    const regions = {
+      "Lagos": { lat: 6.5244, lng: 3.3792, jobs: 0, reports: 0, verified: 0 },
+      "Abuja": { lat: 9.0765, lng: 7.3986, jobs: 0, reports: 0, verified: 0 },
+      "Kano": { lat: 12.0022, lng: 8.5919, jobs: 0, reports: 0, verified: 0 },
+      "Port Harcourt": { lat: 4.8156, lng: 7.0493, jobs: 0, reports: 0, verified: 0 },
+      "Other": { lat: 8.0, lng: 7.5, jobs: 0, reports: 0, verified: 0 },
+    };
+
+    jobs.forEach(job => {
+      let regionKey = "Other";
+      if (job.location.toLowerCase().includes("lagos")) regionKey = "Lagos";
+      else if (job.location.toLowerCase().includes("abuja")) regionKey = "Abuja";
+      else if (job.location.toLowerCase().includes("kano")) regionKey = "Kano";
+      else if (job.location.toLowerCase().includes("port")) regionKey = "Port Harcourt";
+
+      const r = regions[regionKey as keyof typeof regions];
+      r.jobs++;
+      r.reports += job.reports.length;
+      if (job.company.isVerified) r.verified++;
+    });
+
+    const heatmapData = Object.entries(regions).map(([name, data]) => {
+      const risk = data.jobs > 0 
+        ? Math.min(100, (data.reports / data.jobs) * 40 + (data.verified / data.jobs < 0.7 ? 40 : 0))
+        : 20;
+
+      return {
+        lat: data.lat,
+        lng: data.lng,
+        intensity: Math.round(risk),
+        name,
+        totalJobs: data.jobs,
+        totalReports: data.reports,
+        verificationRate: data.jobs > 0 ? Math.round((data.verified / data.jobs) * 100) : 0,
+      };
+    });
 
     res.json({
       success: true,
       data: heatmapData,
-      totalPoints: heatmapData.length
+      totalRegions: heatmapData.length,
     });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch heatmap data" });
+    res.status(500).json({ error: "Failed to generate risk heatmap" });
+  }
+};
+
+
+/**
+ * @route   POST /api/public/contact
+ * @desc    Handles inbound verification inquiries and forwards them to Admin Gmail
+ * @access  Public
+ */
+export const sendMail = async (req: Request, res: Response, next: NextFunction) => {
+  const { name, email, subject, message } = req.body;
+
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ error: "All fields are required." });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"${name}" <${process.env.SMTP_USER}>`,
+      to: process.env.SMTP_USER,
+      replyTo: email,
+      subject: `[SafeHire Contact] ${subject}`,
+      html: `
+        <h2>New Contact Form Submission</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Subject:</strong> ${subject}</p>
+        <hr>
+        <p>${message}</p>
+      `,
+    });
+
+    res.status(200).json({ message: "Message sent successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to send email" });
   }
 };
