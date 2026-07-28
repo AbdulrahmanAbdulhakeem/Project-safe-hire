@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { adminCreateCompany, adminUpdateCompany, deleteCompanyProfile, getAdminStats, getAllCompaniesAdmin, getCompanyProfile, updateCompanyProfile } from "../controllers/admin.controller";
-import { requireAuth, requireRole } from "../middleware/auth.middleware";
+import { adminCreateCompany, adminUpdateCompany, deleteCompanyProfile, getAdminStats, getAllCompaniesAdmin, getCompanyProfile, updateCompanyProfile } from "../controllers/admin.controller.js";
+import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 router.use(requireAuth,requireRole("ADMIN"))

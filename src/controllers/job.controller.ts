@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
+import { prisma } from "../lib/prisma.js";
 
 //Get Companies profile
 export const getMyCompanyProfile = async (req: Request, res: Response, next: NextFunction) => {

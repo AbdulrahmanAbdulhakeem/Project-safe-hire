@@ -1,10 +1,10 @@
 import express from "express";
 import cors from "cors";
 import { toNodeHandler } from "better-auth/node";
-import { auth } from "./lib/auth";
-import adminRoutes from "./routes/auth.route";
-import publicRoutes from "./routes/public.route";
-import jobRoutes from "./routes/job.route";
+import { auth } from "./lib/auth.js";
+import adminRoutes from "./routes/auth.route.js";
+import publicRoutes from "./routes/public.route.js";
+import jobRoutes from "./routes/job.route.js";
 
 const app = express();
 const PORT = process.env.PORT || 8000;
