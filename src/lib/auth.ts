@@ -15,6 +15,13 @@ export const auth = betterAuth({
   advanced: {
     // Allows cookie transmissions across local dev environments safely
     disableOriginCheck: true, 
+    crossSubDomainCookies: {
+      enabled: true,
+    },
+    defaultCookieAttributes: {
+      sameSite: "none", // Crucial for Netlify -> Render requests
+      secure: true,    // Required when sameSite is 'none'
+    },
   },
   user: {
     additionalFields: {
