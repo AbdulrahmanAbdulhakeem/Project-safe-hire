@@ -36,14 +36,26 @@ app.use(
 );
 
 app.all("/api/auth/*any", toNodeHandler(auth));
-app.use(express.urlencoded({ extended: true }));
+// app.use(express.urlencoded({ extended: true }));
 
-app.use(express.json());
+// app.use(express.json());
 
-// Custom Feature Routes
-app.use("/api/admin", adminRoutes);
-app.use("/api/public", publicRoutes);
-app.use("/api/jobs", jobRoutes);
+// // Custom Feature Routes
+// app.use("/api/admin", adminRoutes);
+// app.use("/api/public", publicRoutes);
+// app.use("/api/jobs", jobRoutes);
+
+const apiRouter = express.Router();
+apiRouter.use(express.json());
+apiRouter.use(express.urlencoded({ extended: true }));
+
+// Mount feature routers on the JSON-parsed apiRouter
+apiRouter.use("/admin", adminRoutes);   // Handles POST /api/admin/companies/onboard
+apiRouter.use("/public", publicRoutes);
+apiRouter.use("/jobs", jobRoutes);
+
+// Mount the apiRouter at /api
+app.use("/api", apiRouter);
 
 app.get("/", (req, res) => {
   res.send("Lets fucking gooo");
