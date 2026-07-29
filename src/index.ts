@@ -13,11 +13,23 @@ export const FRONTEND_URL = process.env.FRONTEND_URL;
 
 if (!FRONTEND_URL) throw Error("Frontend URL is missing");
 
+// Remove any accidental trailing slashes from the environment variable
+const rawFrontendUrl = FRONTEND_URL || "";
+const frontendUrl = rawFrontendUrl.endsWith("/") 
+  ? rawFrontendUrl.slice(0, -1) 
+  : rawFrontendUrl;
+
+const allowedOrigins = [
+  frontendUrl,
+  "https://project-safe-hire.netlify.app",
+  "http://localhost:5173",
+];
+
 
 
 app.use(
   cors({
-    origin: FRONTEND_URL, 
+    origin: allowedOrigins, 
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   }),
