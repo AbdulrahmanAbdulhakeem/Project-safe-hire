@@ -1,76 +1,91 @@
 import { Request, Response, NextFunction } from "express";
 import { auth } from "../lib/auth.js";
 import { prisma } from "../lib/prisma.js";
+import { fromNodeHeaders } from "better-auth/node";
 import axios from "axios";
 
 export const adminCreateCompany = async (
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) => {
-  const { email, password, name, cacRc, address } = req.body;
-
-  if (!email || !password || !name || !cacRc) {
-    return res.status(400).json({
-      error: "Missing required fields (email, password, name, cacRc).",
-    });
-  }
-
   try {
-    // 1. Check if the RC number or email is already registered to avoid duplication conflict
-    const existingCompany = await prisma.company.findUnique({
-      where: { cacRc },
-    });
-    if (existingCompany) {
-      return res
-        .status(409)
-        .json({ error: "A company with this CAC RC Number already exists." });
+    const { email, password, name, cacRc, address } = req.body || {};
+
+    if (!email || !password || !name || !cacRc) {
+      return res.status(400).json({
+        error: "Missing required fields (email, password, name, cacRc).",
+      });
     }
 
-    // 2. Use Better-Auth's API helper to securely create the system user account
+    const formattedCacRc = String(cacRc).replace(/\s+/g, "").toUpperCase();
+
+    const existingCompany = await prisma.company.findUnique({
+      where: { cacRc: formattedCacRc },
+    });
+
+    if (existingCompany) {
+      return res.status(409).json({ 
+        error: "A company with this CAC RC Number already exists." 
+      });
+    }
+
+    // 1. Call Better-Auth API
     const newUser = await auth.api.signUpEmail({
       body: {
         email,
         password,
         name,
       },
+      headers: fromNodeHeaders(req.headers),
     });
 
-    if (!newUser || !newUser.user) {
-      return res
-        .status(500)
-        .json({ error: "Failed to initialize authentication credentials." });
+    // 2. Safely extract user ID
+    const userId = newUser?.user?.id || (newUser as any)?.id;
+
+    if (!userId) {
+      if (res.headersSent) return; // Guard against duplicate response
+      return res.status(500).json({
+        error: "Failed to initialize user credentials via Better-Auth.",
+        details: newUser,
+      });
     }
 
-    // 3. Construct the linked company profile with pre-approved states
-    //note:.replace(/\s+/g, "")
-    // .replace() is a built-in tool used to find text and swap it with something else.
-    // /\s+/g is a search pattern (called a Regular Expression or Regex):
-    // \s means any whitespace character (spaces, tabs, or line breaks).
-    // + means "one or more" spaces in a row.
-    // g means "global" (find and change every space in the text, not just the first one).
-    // "" is an empty string. Replacing spaces with an empty string effectively erases them.
+    // 3. Create Prisma Company Record
     const newCompany = await prisma.company.create({
       data: {
-        userId: newUser.user.id,
-        cacRc: cacRc.replace(/\s+/g, "").toUpperCase(),
-        name,
-        address,
+        userId: userId,
+        cacRc: formattedCacRc,
+        name: String(name),
+        address: address ? String(address) : null,
         isVerified: true,
         status: "APPROVED",
         verificationDate: new Date(),
       },
     });
 
+    // 4. Guard before returning final response
+    if (res.headersSent) return;
+
     return res.status(201).json({
       message: "Company account successfully onboarded by Admin.",
       companyId: newCompany.id,
-      userId: newUser.user.id,
+      userId: userId,
       cacRc: newCompany.cacRc,
-      user: newUser,
     });
-  } catch (error) {
-    next(error);
+
+  } catch (error: any) {
+    console.error("❌ Error inside adminCreateCompany:", error);
+    
+    // 5. CRUCIAL: If headers were already sent before error occurred, exit immediately!
+    if (res.headersSent) {
+      return;
+    }
+
+    return res.status(500).json({
+      error: "Internal Server Error during company onboarding.",
+      details: error?.message || String(error),
+    });
   }
 };
 
