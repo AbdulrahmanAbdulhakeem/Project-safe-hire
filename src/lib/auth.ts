@@ -11,7 +11,12 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true, // Enables standard credentials for Admins and Onboarded Companies
   },
-//   baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: [
+    process.env.FRONTEND_URL!,
+    "https://project-safe-hire.netlify.app",
+    "http://localhost:5173",
+  ],
+  baseURL: process.env.BETTER_AUTH_URL,
   advanced: {
     // Allows cookie transmissions across local dev environments safely
     disableOriginCheck: true, 
