@@ -441,24 +441,41 @@ export const deleteCompanyProfile = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const id = req.params.userId as string; // This is userId
+  const id = req.params.userId as string;
 
   try {
-    // Delete related company first
-    await prisma.company.deleteMany({
+    const company = await prisma.company.findFirst({
       where: { userId: id },
     });
 
-    // Then delete user
-    const deleted = await prisma.user.delete({
-      where: { id },
+    if (!company) {
+      // maybe they passed company.id instead of userId
+      const byCompanyId = await prisma.company.findUnique({
+        where: { id },
+      });
+      if (!byCompanyId) {
+        return res.status(404).json({ error: "Company not found." });
+      }
+      // delete by company → user
+      await prisma.$transaction(async (tx) => {
+        await tx.company.delete({ where: { id: byCompanyId.id } });
+        await tx.user.delete({ where: { id: byCompanyId.userId } });
+      });
+      return res.json({ message: "Company deleted successfully." });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.company.delete({ where: { id: company.id } });
+      await tx.user.delete({ where: { id } });
     });
 
-    res.json({
-      message: `Company and user with ID ${id} deleted successfully.`,
+    return res.json({ message: "Company deleted successfully." });
+  } catch (error: any) {
+    console.error("Delete company error:", error);
+    return res.status(500).json({
+      error: "Failed to delete company",
+      details: error?.message,
     });
-  } catch (error) {
-    next(error);
   }
 };
 /**

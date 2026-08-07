@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import axios from "axios";
 import { prisma } from "../lib/prisma.js";
-import nodemailer from "nodemailer"
+import nodemailer from "nodemailer";
 
 export const verifyCompanyPublic = async (
   req: Request,
@@ -235,11 +235,9 @@ export const getCompanyByIdPublic = async (
     console.log(company);
 
     if (!company) {
-      return res
-        .status(404)
-        .json({
-          error: "No registered corporate entity matches this identifier.",
-        });
+      return res.status(404).json({
+        error: "No registered corporate entity matches this identifier.",
+      });
     }
 
     return res.status(200).json({
@@ -264,19 +262,27 @@ export const getRiskHeatmapData = async (req: Request, res: Response) => {
 
     // Simple region bucketing (expand this later)
     const regions = {
-      "Lagos": { lat: 6.5244, lng: 3.3792, jobs: 0, reports: 0, verified: 0 },
-      "Abuja": { lat: 9.0765, lng: 7.3986, jobs: 0, reports: 0, verified: 0 },
-      "Kano": { lat: 12.0022, lng: 8.5919, jobs: 0, reports: 0, verified: 0 },
-      "Port Harcourt": { lat: 4.8156, lng: 7.0493, jobs: 0, reports: 0, verified: 0 },
-      "Other": { lat: 8.0, lng: 7.5, jobs: 0, reports: 0, verified: 0 },
+      Lagos: { lat: 6.5244, lng: 3.3792, jobs: 0, reports: 0, verified: 0 },
+      Abuja: { lat: 9.0765, lng: 7.3986, jobs: 0, reports: 0, verified: 0 },
+      Kano: { lat: 12.0022, lng: 8.5919, jobs: 0, reports: 0, verified: 0 },
+      "Port Harcourt": {
+        lat: 4.8156,
+        lng: 7.0493,
+        jobs: 0,
+        reports: 0,
+        verified: 0,
+      },
+      Other: { lat: 8.0, lng: 7.5, jobs: 0, reports: 0, verified: 0 },
     };
 
-    jobs.forEach(job => {
+    jobs.forEach((job) => {
       let regionKey = "Other";
       if (job.location.toLowerCase().includes("lagos")) regionKey = "Lagos";
-      else if (job.location.toLowerCase().includes("abuja")) regionKey = "Abuja";
+      else if (job.location.toLowerCase().includes("abuja"))
+        regionKey = "Abuja";
       else if (job.location.toLowerCase().includes("kano")) regionKey = "Kano";
-      else if (job.location.toLowerCase().includes("port")) regionKey = "Port Harcourt";
+      else if (job.location.toLowerCase().includes("port"))
+        regionKey = "Port Harcourt";
 
       const r = regions[regionKey as keyof typeof regions];
       r.jobs++;
@@ -285,9 +291,14 @@ export const getRiskHeatmapData = async (req: Request, res: Response) => {
     });
 
     const heatmapData = Object.entries(regions).map(([name, data]) => {
-      const risk = data.jobs > 0 
-        ? Math.min(100, (data.reports / data.jobs) * 40 + (data.verified / data.jobs < 0.7 ? 40 : 0))
-        : 20;
+      const risk =
+        data.jobs > 0
+          ? Math.min(
+              100,
+              (data.reports / data.jobs) * 40 +
+                (data.verified / data.jobs < 0.7 ? 40 : 0),
+            )
+          : 20;
 
       return {
         lat: data.lat,
@@ -296,7 +307,8 @@ export const getRiskHeatmapData = async (req: Request, res: Response) => {
         name,
         totalJobs: data.jobs,
         totalReports: data.reports,
-        verificationRate: data.jobs > 0 ? Math.round((data.verified / data.jobs) * 100) : 0,
+        verificationRate:
+          data.jobs > 0 ? Math.round((data.verified / data.jobs) * 100) : 0,
       };
     });
 
@@ -310,13 +322,16 @@ export const getRiskHeatmapData = async (req: Request, res: Response) => {
   }
 };
 
-
 /**
  * @route   POST /api/public/contact
  * @desc    Handles inbound verification inquiries and forwards them to Admin Gmail
  * @access  Public
  */
-export const sendMail = async (req: Request, res: Response, next: NextFunction) => {
+export const sendMail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const { name, email, subject, message } = req.body;
 
   if (!name || !email || !subject || !message) {
@@ -325,13 +340,14 @@ export const sendMail = async (req: Request, res: Response, next: NextFunction) 
 
   try {
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
     });
-
     await transporter.sendMail({
       from: `"${name}" <${process.env.SMTP_USER}>`,
       to: process.env.SMTP_USER,
@@ -348,8 +364,11 @@ export const sendMail = async (req: Request, res: Response, next: NextFunction) 
     });
 
     res.status(200).json({ message: "Message sent successfully" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to send email" });
+  } catch (error: any) {
+    console.error("Email error:", error?.message || error);
+    res.status(500).json({
+      error: "Failed to send email",
+      details: error?.message, // remove in production if you prefer
+    });
   }
 };
