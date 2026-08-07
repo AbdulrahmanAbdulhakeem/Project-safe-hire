@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import axios from "axios";
 import { prisma } from "../lib/prisma.js";
 import nodemailer from "nodemailer";
-import dns from "node:dns"
+import dns from "node:dns";
 
 export const verifyCompanyPublic = async (
   req: Request,
@@ -332,7 +332,11 @@ export const getRiskHeatmapData = async (req: Request, res: Response) => {
 // Prefer IPv4 so Render can reach Gmail;Render often cannot reach usimg ipv6
 dns.setDefaultResultOrder("ipv4first");
 
-export const sendMail = async (req: Request, res: Response, next: NextFunction) => {
+export const sendMail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const { name, email, subject, message } = req.body;
 
   if (!name || !email || !subject || !message) {
@@ -342,13 +346,13 @@ export const sendMail = async (req: Request, res: Response, next: NextFunction) 
   try {
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 465,
-      secure: true, // SSL
+      port: 587,
+      secure: false,
+      requireTLS: true,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
-      // Extra safety: don't use IPv6 family
       family: 4,
     } as any);
 
