@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import axios from "axios";
 import { prisma } from "../lib/prisma.js";
 import nodemailer from "nodemailer";
+import dns from "node:dns"
 
 export const verifyCompanyPublic = async (
   req: Request,
@@ -327,11 +328,11 @@ export const getRiskHeatmapData = async (req: Request, res: Response) => {
  * @desc    Handles inbound verification inquiries and forwards them to Admin Gmail
  * @access  Public
  */
-export const sendMail = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+
+// Prefer IPv4 so Render can reach Gmail;Render often cannot reach usimg ipv6
+dns.setDefaultResultOrder("ipv4first");
+
+export const sendMail = async (req: Request, res: Response, next: NextFunction) => {
   const { name, email, subject, message } = req.body;
 
   if (!name || !email || !subject || !message) {
@@ -342,14 +343,17 @@ export const sendMail = async (
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
-      secure: true,
+      secure: true, // SSL
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
-    });
+      // Extra safety: don't use IPv6 family
+      family: 4,
+    } as any);
+
     await transporter.sendMail({
-      from: `"${name}" <${process.env.SMTP_USER}>`,
+      from: `"SafeHire Contact" <${process.env.SMTP_USER}>`,
       to: process.env.SMTP_USER,
       replyTo: email,
       subject: `[SafeHire Contact] ${subject}`,
@@ -365,10 +369,10 @@ export const sendMail = async (
 
     res.status(200).json({ message: "Message sent successfully" });
   } catch (error: any) {
-    console.error("Email error:", error?.message || error);
+    console.error("SMTP error:", error?.message || error);
     res.status(500).json({
       error: "Failed to send email",
-      details: error?.message, // remove in production if you prefer
+      details: error?.message,
     });
   }
 };
