@@ -329,16 +329,20 @@ export const getRiskHeatmapData = async (req: Request, res: Response) => {
  */
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export const sendMail = async (req: Request, res: Response) => {
+export const sendMail = async (req: Request, res: Response, next: NextFunction) => {
   const { name, email, subject, message } = req.body;
 
   if (!name || !email || !subject || !message) {
     return res.status(400).json({ error: "All fields are required." });
   }
 
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(500).json({ error: "RESEND_API_KEY is not configured" });
+  }
+
   try {
-    await resend.emails.send({
-      from: `"SafeHire Contact" <${process.env.SMTP_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: "SafeHire <onboarding@resend.dev>", // testing only
       to: process.env.CONTACT_TO_EMAIL || process.env.SMTP_USER!,
       replyTo: email,
       subject: `[SafeHire Contact] ${subject}`,
@@ -352,12 +356,21 @@ export const sendMail = async (req: Request, res: Response) => {
       `,
     });
 
-    res.status(200).json({ message: "Message sent successfully" });
-  } catch (error: any) {
-    console.error("Email error:", error?.message || error);
-    res.status(500).json({
+    if (error) {
+      console.error("Resend error:", error);
+      return res.status(500).json({
+        error: "Failed to send email",
+        details: error.message,
+      });
+    }
+
+    return res.status(200).json({ message: "Message sent successfully", id: data?.id });
+  } catch (err: any) {
+    console.error("Email exception:", err?.message || err);
+    return res.status(500).json({
       error: "Failed to send email",
-      details: error?.message,
+      details: err?.message || String(err),
     });
   }
 };
+
