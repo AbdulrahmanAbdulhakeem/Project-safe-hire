@@ -5,6 +5,7 @@ import { auth } from "./lib/auth.js";
 import adminRoutes from "./routes/auth.route.js";
 import publicRoutes from "./routes/public.route.js";
 import jobRoutes from "./routes/job.route.js";
+import whatsappRoutes from "./routes/whatsapp.route.js"
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -53,6 +54,7 @@ apiRouter.use(express.urlencoded({ extended: true }));
 apiRouter.use("/admin", adminRoutes);   // Handles POST /api/admin/companies/onboard
 apiRouter.use("/public", publicRoutes);
 apiRouter.use("/jobs", jobRoutes);
+apiRouter.use("/whatsapp", whatsappRoutes);
 
 // Mount the apiRouter at /api
 app.use("/api", apiRouter);

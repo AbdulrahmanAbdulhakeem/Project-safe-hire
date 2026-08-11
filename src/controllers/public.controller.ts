@@ -356,6 +356,8 @@ export const sendMail = async (req: Request, res: Response, next: NextFunction) 
       `,
     });
 
+
+
     if (error) {
       console.error("Resend error:", error);
       return res.status(500).json({
